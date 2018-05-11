@@ -5,11 +5,10 @@
       "type": "node",
       "request": "launch",
       "name": "Debug Project",
-      // we test in `build` to make cleanup fast and easy
-      "cwd": "${workspaceFolder}/build",
+      "program": "${workspaceFolder}/build/main/index.js",
       // Replace this with your project root. If there are multiple, you can
       // automatically run the currently visible file with: "program": ${file}"
-      "program": "${workspaceFolder}/src/cli/cli.ts",
+      // "program": "${workspaceFolder}/src/cli/cli.ts",
       // "args": ["--no-install"],
       "outFiles": ["${workspaceFolder}/build/main/**/*.js"],
       "skipFiles": [
@@ -17,13 +16,7 @@
         "${workspaceFolder}/node_modules/**/*.js"
       ],
       "preLaunchTask": "npm: build",
-      "stopOnEntry": true,
-      "smartStep": true,
-      "runtimeArgs": ["--nolazy"],
-      "env": {
-        "TYPESCRIPT_STARTER_REPO_URL": "${workspaceFolder}"
-      },
-      "console": "externalTerminal"
+      "smartStep": true
     },
     {
       /// Usage: set appropriate breakpoints in a *.spec.ts file, then open the
@@ -32,7 +25,7 @@
       "type": "node",
       "request": "launch",
       "name": "Debug Visible Compiled Spec",
-      "program": "${workspaceFolder}/node_modules/ava/profile.js",
+      "program": "${workspaceFolder}/scripts/test.js",
       "args": [
         "${file}"
         // TODO: VSCode's launch.json variable substitution

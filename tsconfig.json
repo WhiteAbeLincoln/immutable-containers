@@ -35,9 +35,15 @@
     // "experimentalDecorators": true /* Enables experimental support for ES7 decorators. */,
     // "emitDecoratorMetadata": true /* Enables experimental support for emitting type metadata for decorators. */,
 
-    "lib": ["es2017"],
-    "types": [],
-    "typeRoots": ["node_modules/@types", "src/types"]
+    "lib": ["es2017", "dom"],
+    // typeroots was giving me errors
+    "baseUrl": "./",
+    "paths": {
+      "*": [
+        "./@types/*",
+        "*"
+      ]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules/**"],
