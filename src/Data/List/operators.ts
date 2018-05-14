@@ -128,8 +128,13 @@ export const init = <A>(xs: List<A>): List<A> => (
   }, xs.length - 1)
 )
 
-export const length = len(list)
-export const empty = empt(list)
+export function length<A>(xs: List<A>) {
+  return len(list)(xs)
+}
+
+export function empty<A>(xs: List<A>) {
+  return empt(list)(xs)
+}
 
 /**
  * Applies f to every element of xs.
@@ -297,6 +302,19 @@ export const take = (n: number) => <A>(xs: List<A>) => (
       if (++count >= n) break
     }
   })
+)
+
+export const drop = (n: number) => <A>(xs: List<A>) => (
+  new List(function*() {
+    let count = 0
+    for (const x of xs) {
+      if (count === n) {
+        yield x
+      } else {
+        count++
+      }
+    }
+  }, xs.length - n < 0 ? 0 : xs.length - n)
 )
 
 export const concatMap = cm(array)

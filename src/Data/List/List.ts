@@ -1,4 +1,4 @@
-import { append, concat, unfoldr, zip, take } from './operators'
+import { append, concat, unfoldr, zip, take, cons, drop } from './operators'
 import { Monoid } from 'fp-ts/lib/Monoid'
 import { Monad1 } from 'fp-ts/lib/Monad'
 import { Unfoldable1 } from 'fp-ts/lib/Unfoldable'
@@ -8,6 +8,8 @@ import { Extend1 } from 'fp-ts/lib/Extend'
 import { Applicative, Applicative2, Applicative3, Applicative1 } from 'fp-ts/lib/Applicative'
 import { HKT, URIS3, URIS2, URIS, Type2, Type, Type3 } from 'fp-ts/lib/HKT'
 import { equals } from '../../Prelude'
+import { liftA2 } from 'fp-ts/lib/Apply'
+import { foldr } from 'fp-ts/lib/Foldable'
 
 const getNextN = <A>(n: number, cache: A[], iter: IterableIterator<A>) => {
   let count = 0
@@ -203,6 +205,16 @@ export class List<A> implements Collection<A> {
     }, this.length)
   }
 
+  /**
+   * Applies a function to every element of the list
+   * @param callbackfn A Array.prototype.map compatible mapping function
+   * @param thisArg The list to map over. Defaults to this
+   */
+  map1<B>(callbackfn: (value: A, index: number, list: List<A>) => B, thisArg = this): List<B> {
+    let i = 0
+    return thisArg.map(x => callbackfn(x, i++, thisArg))
+  }
+
   ap<B>(fab: List<(a: A) => B>): List<B> {
     const inner = fab.map(f => this.map(f))
     return concat(inner)
@@ -233,20 +245,21 @@ export class List<A> implements Collection<A> {
     return acc
   }
 
-  chain<B>(_f: (a: A) => List<B>): List<B> {
-    throw new Error('Not Implemented')
+  chain<B>(f: (a: A) => List<B>): List<B> {
+    return concat(this.map(f))
   }
 
   traverse<F extends URIS3, U, L, B>(F: Applicative3<F>, f: (a: A) => Type3<F, U, L, B>): Type3<F, U, L, List<B>>
   traverse<F extends URIS2, L, B>(F: Applicative2<F>, f: (a: A) => Type2<F, L, B>): Type2<F, L, List<B>>
   traverse<F extends URIS, B>(F: Applicative1<F>, f: (a: A) => Type<F, B>): Type<F, List<B>>
   traverse<F, B>(F: Applicative<F>, f: (a: A) => HKT<F, B>): HKT<F, List<B>>
-  traverse<F, B>(_F: Applicative<F>, _f: (a: A) => HKT<F, B>): HKT<F, List<B>> {
-    throw new Error('Not Implemented')
+  traverse<F, B>(F: Applicative<F>, f: (a: A) => HKT<F, B>): HKT<F, List<B>> {
+    const consf = (x: A, ys: HKT<F, List<B>>) => liftA2(F)((a: B) => (b: List<B>) => cons(a)(b))(f(x))(ys)
+    return foldr(list)(this, F.of(List.zero()), consf)
   }
 
-  extend<B>(_f: (fa: List<A>) => B): List<B> {
-    throw new Error('Not Implemented')
+  extend<B>(f: (fa: List<A>) => B): List<B> {
+    return this.map1((_, i, as) => f(drop(i)(as)))
   }
 
   alt(fy: List<A>): List<A> {

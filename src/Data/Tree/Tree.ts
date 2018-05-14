@@ -14,6 +14,7 @@ import { HKT } from 'fp-ts/lib/HKT'
 import { liftA2 } from 'fp-ts/lib/Apply'
 import { array, traverse as traverseA, isEmpty } from 'fp-ts/lib/Array'
 import { iterate, concatMap, takeWhile, map as mapI } from '../List/'
+import { Extend1 } from 'fp-ts/lib/Extend'
 
 declare module 'fp-ts/lib/HKT' {
   interface URI2HKT<A> {
@@ -107,6 +108,10 @@ export class Tree<A> {
       /* traverse f (Node x ts) = liftA2 Node (f x) (traverse (traverse f) ts) */
       return liftA2(F)((b: B) => Node(b))(f(x))(traverseA(F)(ts, t => t.traverse(F)(f)))
     }
+  }
+
+  extend<B>(f: (t: Tree<A>) => B): Tree<B> {
+    return new Tree(f(this), this.subForest.map(ts => ts.extend(f)))
   }
 
   flatten(): A[] {
@@ -226,6 +231,7 @@ export const tree: Monad1<URI>
                  & Functor1<URI>
                  & Applicative1<URI>
                  & Foldable1<URI>
+                 & Extend1<URI>
                  & Traversable1<URI> = {
   URI
 , of: a => Node(a)([])
@@ -234,4 +240,5 @@ export const tree: Monad1<URI>
 , chain: (fa, f) => fa.chain(f)
 , reduce: (fa, b, f) => fa.reduce(b, f)
 , traverse: F => (ta, f) => ta.traverse(F)(f)
+, extend: (ea, f) => ea.extend(f)
 }

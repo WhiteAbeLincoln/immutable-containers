@@ -2,7 +2,8 @@ import { List, ConstantList, list as module } from './List'
 import { sequence } from 'fp-ts/lib/Traversable'
 import { array } from 'fp-ts/lib/Array'
 import { equals } from '../../Prelude'
-import { head } from './operators'
+import { length } from './operators'
+import { identity, Identity } from '../../Identity'
 
 // helper functions
 const pause = (milli: number) => {
@@ -439,8 +440,8 @@ describe('List', () => {
       // u.traverse(F, F.of) === F.of(u)
       expect(
         equals(
-          u.traverse(module, List.of),
-          List.of(u)
+          u.traverse(identity, Identity.of),
+          Identity.of(u)
         )
       ).toBeTruthy()
 
@@ -487,7 +488,7 @@ describe('List', () => {
       // ma.chain(M.of) = ma
       expect(
         equals(
-          List.of(1).chain(List.of),
+          List.of(1).chain(x => List.of(x)),
           List.of(1)
         )
       ).toBeTruthy()
@@ -500,11 +501,11 @@ describe('List', () => {
     })
 
     it('fulfills the Extend laws', () => {
-      // f :: List number -> string
-      const f = (x: List<number>) => head(x).toString()
+      // f :: List number -> number
+      const f = (x: List<number>) => length(x)
 
-      // g :: List string -> number
-      const g = (x: List<string>) => head(x).length
+      // g :: List number -> string
+      const g = (x: List<number>) => length(x).toString()
 
       // w :: List number
       const w = List.of(1, 2, 3)
@@ -516,6 +517,21 @@ describe('List', () => {
           w.extend(ww => g(ww.extend(f)))
         )
       ).toBeTruthy()
+    })
+
+    it('operates like fp-ts Array.extend', () => {
+      const arr = [1, 2, 3, 4]
+      const list = List.from(arr)
+
+      const arrlen = array.extend(arr, fa => fa.length)
+      const lstlen = list.extend(fa => length(fa))
+
+      expect(
+        equals(
+          List.from(arrlen),
+          lstlen
+        )
+      )
     })
   })
 })
