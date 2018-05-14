@@ -1,4 +1,4 @@
-import { List, ConstantList } from './List'
+import { List, ConstantList, list as module } from './List'
 
 // helper functions
 const pause = (milli: number) => {
@@ -35,6 +35,14 @@ describe('List', () => {
   it('constructs without error', () => {
     expect(() => new List()).not.toThrow()
     expect(() => new List([1, 2])).not.toThrow()
+  })
+
+  it('constructs using List.of', () => {
+    expect([...List.of(1, 2, 3, 4)]).toEqual([1, 2, 3, 4])
+  })
+
+  it('constructs using List.from', () => {
+    expect([...List.from([1, 2, 3, 4])]).toEqual([1, 2, 3, 4])
   })
 
   it('can be an empty list', () => {
@@ -97,7 +105,7 @@ describe('List', () => {
     expect(Object.prototype.toString.call(maplist)).not.toBe('[object Object]')
   })
 
-  it('Allows constant time access to an index after the first access', () => {
+  it('allows constant time access to an index after the first access', () => {
     const gen = function*() {
       // Need to busy wait here
       let waited = 0
@@ -119,6 +127,58 @@ describe('List', () => {
     expect(dt2).toBeLessThan(500)
   })
 
+  it('has List() equal List()', () => {
+    const l1 = List.zero()
+    const l2 = List.zero()
+
+    expect(l1.equals(l2)).toBeTruthy()
+    expect(l2.equals(l1)).toBeTruthy()
+  })
+
+  it('has List(1) equal List(1)', () => {
+    const l1 = List.of(1)
+    const l2 = List.of(1)
+
+    expect(l1.equals(l2)).toBeTruthy()
+    expect(l2.equals(l1)).toBeTruthy()
+  })
+
+  it('has List() not equal List(1)', () => {
+    const l1 = List.zero<number>()
+    const l2 = List.of(1)
+
+    expect(l1.equals(l2)).toBeFalsy()
+    expect(l2.equals(l1)).toBeFalsy()
+  })
+
+  it('has List() not equal List(1..)', () => {
+    const nat = (num = 1) => function*() { while (true) yield num++ }
+    const l1 = List.from(nat(1))
+    const l2 = List.zero<number>()
+
+    expect(l1.equals(l2)).toBeFalsy()
+    expect(l2.equals(l1)).toBeFalsy()
+
+  })
+
+  it('has List(1..) not equal List(1)', () => {
+    const nat = (num = 1) => function*() { while (true) yield num++ }
+    const l1 = List.from(nat(1))
+    const l2 = List.of(1)
+
+    expect(l1.equals(l2)).toBeFalsy()
+    expect(l2.equals(l1)).toBeFalsy()
+  })
+
+  it('has List(1..) not equal List(5..)', () => {
+    const nat = (num = 1) => function*() { while (true) yield num++ }
+    const l1 = List.from(nat(1))
+    const l2 = List.from(nat(5))
+
+    expect(l1.equals(l2)).toBeFalsy()
+    expect(l2.equals(l1)).toBeFalsy()
+  })
+
   describe('Functor instance', () => {
     it('defines map', () => {
       expect(genlist.map).not.toBe(undefined)
@@ -129,15 +189,25 @@ describe('List', () => {
       const plus = (a: number) => (b: number) => a + b
       const toString = (a: any): string => a.toString()
 
-      expect(new List([1]).map(id)
-        .equals(
-          new List(id([1]))
+      const u = List.of(1)
+
+      // u.map(x => x) === u
+      expect(
+        u.map(id)
+          .equals(
+        u
       )).toBeTruthy()
 
-      expect(new List([1]).map(plus(1)).map(toString)
-        .equals(
-          new List([toString(plus(1)(1))])
-      ))
+      const f = plus(1)
+      const g = toString
+
+      // u.map(f).map(g) === u.map(x => g(f(x)))
+      expect(
+        u.map(f).map(g)
+          .equals(
+        u.map(x => g(f(x))
+      ))).toBeTruthy()
+
     })
   })
 
@@ -146,17 +216,221 @@ describe('List', () => {
       expect(genlist.ap).not.toBe(undefined)
     })
 
-    // it('fulfills the Apply laws', () => {
-    //   const compose = <A, B, C>(f: (b: B) => C) => (g: (a: A) => B) => (x: A) => f(g(x))
-    //   const plus = (a: number) => (b: number) => a + b
+    it('fulfills the Apply laws', () => {
+      const compose = <A, B, C>(f: (b: B) => C) => (g: (a: A) => B) => (x: A) => f(g(x))
+      const plus = (a: number) => (b: number) => a + b
+      const toString = (a: any): string => a.toString()
 
-    //   const x = new List([1, 2, 3])
-    //   const g = new List([plus(1), plus(2)])
+      const x = List.of(1, 2, 3)
+      const g = List.of(plus(1), plus(2))
+      const f = List.of(toString)
 
-    //   // function.map is just composition
+      // x.ap(g.ap(f.map(compose))) === x.ap(g).ap(f)
+      expect(
+        x.ap(g.ap(f.map(i => compose(i))))
+          .equals(
+        x.ap(g).ap(f)
+      )).toBeTruthy()
+    })
+  })
 
-    //   expect(x.ap(g.ap()))
-    // })
+  describe('Applicative instance', () => {
+    it('defines of', () => {
+      expect(List.of).not.toBe(undefined)
+    })
+
+    it('fulfills the Applcative laws', () => {
+      const id = <A>(a: A) => a
+
+      const v = List.of(1)
+
+      // Identity.
+      // v.ap(A.of(x => x)) === v
+      expect(
+        v.ap(List.of(id))
+          .equals(
+        v
+      )).toBeTruthy()
+
+      const toString = (a: any): string => a.toString()
+
+      const x = 1
+      const f = toString
+
+      // Homomorphism
+      // A.of(x).ap(A.of(f)) === A.of(f(x))
+      expect(
+        List.of(1).ap(List.of(f))
+          .equals(
+        List.of(f(x))
+      )).toBeTruthy()
+
+      const y = 2
+      const u = List.of(toString)
+
+      // Interchange
+      // A.of(y).ap(u) === u.ap(A.of(f => f(y)))
+      expect(
+        List.of(y).ap(u)
+          .equals(
+        u.ap(List.of((f: typeof toString) => f(y)))
+      )).toBeTruthy()
+    })
+  })
+
+  describe('Alt instance', () => {
+    it('defines alt', () => {
+      expect(genlist.alt).not.toBe(undefined)
+    })
+
+    it('fulfills the Alt laws', () => {
+      const a = List.of(1)
+      const b = List.of(2)
+      const c = List.of(3)
+
+      // Associativity
+      // a.alt(b).alt(c) === a.alt(b.alt(c))
+      expect(
+        a.alt(b).alt(c)
+          .equals(
+        a.alt(b.alt(c))
+      )).toBeTruthy()
+
+      const f = (x: number) => x.toString()
+
+      // Distributivity
+      // a.alt(b).map(f) === a.map(f).alt(b.map(f))
+      expect(
+        a.alt(b).map(f)
+          .equals(
+        a.map(f).alt(b.map(f))
+      ))
+    })
+  })
+
+  describe('Plus instance', () => {
+    it('defines zero', () => {
+      expect(List.zero).not.toBe(undefined)
+    })
+
+    it('fulfills the Plus laws', () => {
+      const x = List.of(1)
+
+      // Right identity - zero on the right
+      // x.alt(A.zero()) === x
+      expect(
+        x.alt(List.zero())
+          .equals(
+        x
+      ))
+
+      // Left identity
+      // A.zero().alt(x) === x
+      expect(
+        List.zero<number>().alt(x)
+          .equals(
+        x
+      ))
+
+      // Annihilation
+      // A.zero().map(f) === A.zero()
+      expect(
+        List.zero().map(x => x.toString())
+          .equals(
+        List.zero()
+      ))
+    })
+  })
+
+  describe('Alternative instance', () => {
+    it('Fulfills the Alternative laws', () => {
+      const x = List.of(1)
+      const f = List.of((x: number) => x + 1)
+      const g = List.of((x: number) => x + 2)
+
+      // Distributivity
+      // x.ap(f.alt(g)) === x.ap(f).alt(x.ap(g))
+      expect(
+        x.ap(f.alt(g))
+          .equals(
+        x.ap(f).alt(x.ap(g))
+      )).toBeTruthy()
+
+      // Annihilation
+      // x.ap(A.zero()) === A.zero()
+      // tslint:disable-next-line:no-console
+      console.log('Alternative annihilation')
+      expect(
+        x.ap(List.zero())
+          .equals(
+        List.zero()
+      )).toBeTruthy()
+    })
+  })
+
+  describe('Chain instance', () => {
+    it('defines chain', () => {
+      expect(genlist.chain).not.toBe(undefined)
+    })
+
+    it('fulfills the Chain laws', () => {
+      const m = List.of(1)
+      const f = (x: number) => List.of(x + 1)
+      const g = (x: number) => List.of(x.toString())
+
+      // Associativity.
+      // m.chain(f).chain(g) === m.chain(x => f(x).chain(g))
+      expect(
+        m.chain(f).chain(g)
+          .equals(
+        m.chain(x => f(x).chain(g))
+      )).toBeTruthy()
+    })
+  })
+
+  describe('Foldable instance', () => {
+    it('defines reduce', () => {
+      expect(genlist.reduce).not.toBe(undefined)
+    })
+
+    /* How does this Foldable law work for infinite
+      structures? An infinite list can never be converted
+      to an array...
+    */
+    it('fulfills the Foldable laws', () => {
+      const toArray = <A>(xs: List<A>) => xs.reduce(
+        (acc, x) => acc.concat([x]), [] as A[]
+      )
+
+      const u = List.of(1, 2, 3)
+      const f = (a: number, b: number) => a + b
+
+      // u.reduce(f) === toArray(u).reduce(f)
+      expect(u.reduce(f, 0)).toBe(toArray(u).reduce(f, 0))
+    })
+  })
+
+  describe('Traversable instance', () => {
+    it('defines traverse', () => {
+      expect(genlist.traverse).not.toBe(undefined)
+    })
+
+    it('fulfills the Traversable laws', () => {
+      const u = List.of(1, 2, 3)
+
+      // Identity
+      // u.traverse(F, F.of) === F.of(u)
+      expect(
+        u.traverse(module, List.of)
+          .equals(
+        List.of(u)
+      ))
+
+      // Naturality
+      // expect(
+      //   List.of(u.traverse(module, ))
+      // )
+    })
   })
 })
 
@@ -187,7 +461,7 @@ describe('ConstantList', () => {
     expect((fixedlist as any).undef).toEqual(undefined)
   })
 
-  it('caches the first n items on get', () => {
+  it('incrementally caches indexes less than size n', () => {
     const gen = function*() {
       pause(250)
       yield 1
@@ -204,9 +478,12 @@ describe('ConstantList', () => {
     const flist = ConstantList(2)(new List(cycle))
 
     const dt = time(() => { flist.get(10) })
-    expect(dt).toBeGreaterThanOrEqual(500)
+    expect(dt).toBeGreaterThanOrEqual(250)
 
-    const dt2 = time(() => { flist.get(0) })
-    expect(dt2).toBeLessThan(500)
+    const dt2 = time(() => { flist.get(11) })
+    expect(dt2).toBeGreaterThanOrEqual(250)
+
+    const dt3 = time(() => { flist.get(1) })
+    expect(dt3).toBeLessThan(250)
   })
 })

@@ -8,16 +8,30 @@ import { getMonoid } from 'fp-ts/lib/Array'
  * @param T The foldable module
  * @param ta A foldable structure
  */
-export const empty = <T, A>(T: Foldable<T>) => (ta: HKT<T, A>) =>
-  foldr(T)(ta, true, (_1: any, _2: any) => false)
+export function empty<F extends URIS3>(T: Foldable3<F>): <U, L, A>(ta: Type3<F, U, L, A>) => boolean
+export function empty<F extends URIS3, U, L>(T: Foldable3C<F, U, L>): <A>(ta: Type3<F, U, L, A>) => boolean
+export function empty<F extends URIS2>(T: Foldable2<F>): <L, A>(ta: Type2<F, L, A>) => boolean
+export function empty<F extends URIS2, L>(T: Foldable2C<F, L>): <A>(ta: Type2<F, L, A>) => boolean
+export function empty<F extends URIS>(T: Foldable1<F>): <A>(ta: Type<F, A>) => boolean
+export function empty<F>(T: Foldable<F>): <A>(ta: HKT<F, A>) => boolean
+export function empty<F>(T: Foldable<F>): <A>(ta: HKT<F, A>) => boolean {
+  return ta => foldr(T)(ta, true, (_1: any, _2: any) => false)
+}
 
 /**
  * Returns the size/length of a finite structure as an Int.
  * @param T The foldable module
  * @param ta A foldable structure
  */
-export const length = <T, A>(T: Foldable<T>) => (ta: HKT<T, A>) =>
-  foldr(T)(ta, 0, (_, c) => c + 1)
+export function length<F extends URIS3>(T: Foldable3<F>): <U, L, A>(ta: Type3<F, U, L, A>) => number
+export function length<F extends URIS3, U, L>(T: Foldable3C<F, U, L>): <A>(ta: Type3<F, U, L, A>) => number
+export function length<F extends URIS2>(T: Foldable2<F>): <L, A>(ta: Type2<F, L, A>) => number
+export function length<F extends URIS2, L>(T: Foldable2C<F, L>): <A>(ta: Type2<F, L, A>) => number
+export function length<F extends URIS>(T: Foldable1<F>): <A>(ta: Type<F, A>) => number
+export function length<F>(T: Foldable<F>): <A>(ta: HKT<F, A>) => number
+export function length<F>(T: Foldable<F>): <A>(ta: HKT<F, A>) => number {
+  return ta => foldr(T)(ta, 0, (_, c) => c + 1)
+}
 
 /**
  * Map a function over all the elements of a container and concatenate the resulting lists

@@ -1,14 +1,12 @@
-import { append, concat, unfoldr, zip } from './operators'
+import { append, concat, unfoldr, zip, take } from './operators'
 import { Monoid } from 'fp-ts/lib/Monoid'
 import { Monad1 } from 'fp-ts/lib/Monad'
-import { Foldable1 } from 'fp-ts/lib/Foldable'
 import { Unfoldable1 } from 'fp-ts/lib/Unfoldable'
 import { Traversable1 } from 'fp-ts/lib/Traversable'
 import { Alternative1 } from 'fp-ts/lib/Alternative'
-import { Plus1 } from 'fp-ts/lib/Plus'
 import { Extend1 } from 'fp-ts/lib/Extend'
-import { Applicative } from 'fp-ts/lib/Applicative'
-import { HKT } from 'fp-ts/lib/HKT'
+import { Applicative, Applicative2, Applicative3, Applicative1 } from 'fp-ts/lib/Applicative'
+import { HKT, URIS3, URIS2, URIS, Type2, Type, Type3 } from 'fp-ts/lib/HKT'
 
 const equal = (a: any, b: any): boolean => {
   if (a && typeof a.equals === 'function') {
@@ -98,12 +96,9 @@ export class List<A> implements Collection<A> {
   private _length: number = 0
 
   /**
-   * An upper bound for the length of the list
+   * A lower bound for the length of the list
    *
    * This only provides an estimate. Use Data.List.length to get the actual size
-   *
-   * When the list is constructed from a generator, there is no
-   * way of knowing the total number of yields.
    */
   get length() { return this._length }
 
@@ -128,6 +123,7 @@ export class List<A> implements Collection<A> {
    * @param length An optional length (defaults to Infinity)
    */
   constructor(generator: () => IterableIterator<A>, length?: number)
+  constructor(ish: Collection<A> | (() => IterableIterator<A>), length?: number)
   constructor(param?: Collection<A> | (() => IterableIterator<A>), length?: number) {
     if (param) {
       this[Symbol.iterator] =
@@ -147,6 +143,29 @@ export class List<A> implements Collection<A> {
     if (length) {
       this._length = length
     }
+  }
+
+  /**
+   * Construct a list from a variadic array
+   * @param items The items to make a list of
+   */
+  static of<A>(...items: A[]): List<A> {
+    return new List(items)
+  }
+
+  /**
+   * Construct a List from a List-like structure
+   * @param ish The List-like structure
+   */
+  static from<A>(ish: Collection<A> | (() => IterableIterator<A>)) {
+    return new List(ish)
+  }
+
+  /**
+   * Construct the empty List
+   */
+  static zero<A>(): List<A> {
+    return new List()
   }
 
   /**
@@ -188,35 +207,56 @@ export class List<A> implements Collection<A> {
       for (const x of xs) {
         yield f(x)
       }
-    }, xs._length)
+    }, this.length)
   }
 
   ap<B>(fab: List<(a: A) => B>): List<B> {
     return concat(fab.map(f => this.map(f)))
   }
 
-  reduce<B>(b: B, f: (b: B, a: A) => B): B {
-    let r = b
+  // TODO: make this a lazy foldr
+  reduce(f: (acc: A, curr: A) => A): A
+  reduce(f: (acc: A, curr: A) => A, init: A): A
+  reduce<B>(f: (acc: B, curr: A) => B, init: B): B
+  reduce<B>(f: (b: A | B, a: A) => A | B, init?: A | B): A | B {
+    const hasSeed = arguments.length >= 2
+    const iter = this[Symbol.iterator]()
 
-    for (const x of this) {
-      r = f(r, x)
+    // remove undefined coming from optional init since we fix with the hasSeed check
+    let acc = init as any as A | B
+
+    if (!hasSeed) {
+      for (const x of iter) {
+        acc = x
+        break
+      }
     }
 
-    return r
+    for (const x of iter) {
+      acc = f(acc, x)
+    }
+
+    return acc
   }
 
   chain<B>(_f: (a: A) => List<B>): List<B> {
     throw new Error('Not Implemented')
   }
 
-  traverse<F>(_F: Applicative<F>): <B>(f: (a: A) => HKT<F, B>) => HKT<F, List<B>> {
-    return _f => {
-      throw new Error('Not Implemented')
-    }
+  traverse<F extends URIS3, U, L, B>(F: Applicative3<F>, f: (a: A) => Type3<F, U, L, B>): Type3<F, U, L, List<B>>
+  traverse<F extends URIS2, L, B>(F: Applicative2<F>, f: (a: A) => Type2<F, L, B>): Type2<F, L, List<B>>
+  traverse<F extends URIS, B>(F: Applicative1<F>, f: (a: A) => Type<F, B>): Type<F, List<B>>
+  traverse<F, B>(F: Applicative<F>, f: (a: A) => HKT<F, B>): HKT<F, List<B>>
+  traverse<F, B>(_F: Applicative<F>, _f: (a: A) => HKT<F, B>): HKT<F, List<B>> {
+    throw new Error('Not Implemented')
   }
 
   extend<B>(_f: (fa: List<A>) => B): List<B> {
     throw new Error('Not Implemented')
+  }
+
+  alt(fy: List<A>): List<A> {
+    return append(this)(fy)
   }
 
   /**
@@ -224,7 +264,7 @@ export class List<A> implements Collection<A> {
    * @param other The other list
    */
   equals(other: List<A>) {
-    if (this._length !== other.length) {
+    if (this.length !== other.length) {
       return false
     }
 
@@ -237,6 +277,18 @@ export class List<A> implements Collection<A> {
     }
 
     return true
+  }
+
+  inspect() {
+    return this.toString()
+  }
+
+  toString(): string {
+    if (this.length !== Infinity) {
+      return `List(${[...this].toString()})`
+    } else {
+      return `List(${[...take(25)(this)].toString()})`
+    }
   }
 }
 
@@ -289,27 +341,23 @@ export const getMonoid = <A = never>(): Monoid<List<A>> => ({
 , empty: new List()
 })
 
-export const of = <A>(a: A): List<A> => new List([a])
-
 /**
  * The List module for [fp-ts](https://github.com/gcanti/fp-ts)
  */
 export const list: Monad1<URI>
-  & Foldable1<URI>
   & Unfoldable1<URI>
   & Traversable1<URI>
   & Alternative1<URI>
-  & Plus1<URI>
   & Extend1<URI>
 = { URI
-  , of: a => new List([a])
+  , of: List.of
   , map: (fa, f) => fa.map(f)
   , ap: (fab, fa) => fa.ap(fab)
   , chain: (fa, f) => fa.chain(f)
-  , reduce: (fa, b, f) => fa.reduce(b, f)
+  , reduce: (fa, b, f) => fa.reduce(f, b)
   , unfoldr: (b, f) => unfoldr(f)(b)
-  , traverse: F => (ta, f) => ta.traverse(F)(f)
-  , zero: () => new List()
-  , alt: (fx, fy) => append(fx)(fy)
-  , extend: (ea, f): any => ea.extend(f)
+  , traverse: F => (ta, f) => ta.traverse(F, f)
+  , zero: List.zero
+  , alt: (fx, fy) => fx.alt(fy)
+  , extend: (ea, f) => ea.extend(f)
 }

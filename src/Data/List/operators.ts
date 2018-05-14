@@ -1,7 +1,7 @@
 /** @module Data/List/operators  */
-import { concatMap as cm } from '../Foldable'
+import { concatMap as cm, length as len, empty as empt } from '../Foldable'
 import { array } from 'fp-ts/lib/Array'
-import { List, ConstantList } from './List'
+import { List, ConstantList, list } from './List'
 import { None, Some } from 'fp-ts/lib/Option'
 
 /**
@@ -37,8 +37,7 @@ export const append = <A>(xs: List<A>) => (ys: List<A>) => (
 export const concat = <A>(xss: List<List<A>>) => {
   const finite = xss.length !== Infinity
 
-  // tslint:disable-next-line:prefer-const
-  let length = Infinity
+  let length = 0
   if (finite) {
     for (const xs of xss) {
       length += xs.length
@@ -49,7 +48,7 @@ export const concat = <A>(xss: List<List<A>>) => {
     for (const xs of xss) {
       yield* xs
     }
-  }, length)
+  }, finite ? length : Infinity)
 }
 
 /**
@@ -129,7 +128,8 @@ export const init = <A>(xs: List<A>): List<A> => (
   }, xs.length - 1)
 )
 
-export { empty, length } from '../Foldable'
+export const length = len(list)
+export const empty = empt(list)
 
 /**
  * Applies f to every element of xs.
