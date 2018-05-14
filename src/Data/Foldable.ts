@@ -1,6 +1,6 @@
 import { Foldable, foldr, foldMap, Foldable3, Foldable2, Foldable2C, Foldable1, Foldable3C } from 'fp-ts/lib/Foldable'
 import { HKT, URIS3, Type3, Type2, URIS2, URIS, Type } from 'fp-ts/lib/HKT'
-import { getMonoid } from 'fp-ts/lib/Array'
+import { List, getMonoid } from './List'
 
 /**
  * Test whether the structure is empty.
@@ -40,13 +40,13 @@ export function length<F>(T: Foldable<F>): <A>(ta: HKT<F, A>) => number {
  * @param xs The foldable structure
  */
 // tslint:disable:max-line-length
-export function concatMap<F extends URIS3>(F: Foldable3<F>): <U, L, A, B>(fa: Type3<F, U, L, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F extends URIS3, U, L>(F: Foldable3C<F, U, L>): <A, B>(fa: Type3<F, U, L, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F extends URIS2>(F: Foldable2<F>): <L, A, B>(fa: Type2<F, L, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F extends URIS2, L>(F: Foldable2C<F, L>): <A, B>(fa: Type2<F, L, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F extends URIS>(F: Foldable1<F>): <A, B>(fa: Type<F, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F>(F: Foldable<F>): <A, B>(fa: HKT<F, A>, f: (a: A) => B[]) => B[]
-export function concatMap<F>(F: Foldable<F>): <A, B>(fa: HKT<F, A>, f: (a: A) => B[]) => B[] {
-  return <A, B>(fa: HKT<F, A>, f: ((a: A) => B[])) => foldMap(F, getMonoid<B>())(fa, f)
+export function concatMap<F extends URIS3>(F: Foldable3<F>): <U, L, A, B>(fa: Type3<F, U, L, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F extends URIS3, U, L>(F: Foldable3C<F, U, L>): <A, B>(fa: Type3<F, U, L, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F extends URIS2>(F: Foldable2<F>): <L, A, B>(fa: Type2<F, L, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F extends URIS2, L>(F: Foldable2C<F, L>): <A, B>(fa: Type2<F, L, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F extends URIS>(F: Foldable1<F>): <A, B>(fa: Type<F, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F>(F: Foldable<F>): <A, B>(fa: HKT<F, A>, f: (a: A) => List<B>) => List<B>
+export function concatMap<F>(F: Foldable<F>): <A, B>(fa: HKT<F, A>, f: (a: A) => List<B>) => List<B> {
+  return <A, B>(fa: HKT<F, A>, f: ((a: A) => List<B>)) => foldMap(F, getMonoid<B>())(fa, f)
 }
 // tslint:enable:max-line-length

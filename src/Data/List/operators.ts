@@ -287,12 +287,16 @@ export const unfoldr = <A, B>(_f: (b: B) => None<[A, B]> | Some<[A, B]>) => (_b:
 }
 
 /**
- * Returns the prefix of xs of length n, or xs if n > length(xs)
+ * Returns the prefix of xs of length n, or xs if n >= length(xs)
  * @param n The desired length
  * @param xs The list
  */
-export const take = (n: number) => <A>(xs: List<A>) => (
-  new List(function*() {
+export const take = (n: number) => <A>(xs: List<A>) => {
+  const len =
+    n > xs.length ? xs.length
+    : n < 1 ? 0
+    : n
+  return new List(function*() {
     if (n < 1) {
       return
     }
@@ -301,8 +305,8 @@ export const take = (n: number) => <A>(xs: List<A>) => (
       yield x
       if (++count >= n) break
     }
-  })
-)
+  }, len)
+}
 
 export const drop = (n: number) => <A>(xs: List<A>) => (
   new List(function*() {
@@ -317,7 +321,7 @@ export const drop = (n: number) => <A>(xs: List<A>) => (
   }, xs.length - n < 0 ? 0 : xs.length - n)
 )
 
-export const concatMap = cm(array)
+export const concatMap = cm(list)
 
 export const takeWhile = <A>(pred: (a: A) => boolean) => (xs: List<A>) => (
   new List(function*() {

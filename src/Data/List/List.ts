@@ -71,7 +71,7 @@ export const URI = 'List'
 export type URI = typeof URI
 
 /** A lazy list */
-export class List<A> implements Collection<A> {
+export class List<A> implements Collection<A>, HKT<URI, A> {
   /** @internal */
   readonly _tag: 'List' = 'List'
   /** @internal */
@@ -292,9 +292,9 @@ export class List<A> implements Collection<A> {
 
   toString(): string {
     if (this.length !== Infinity) {
-      return `${this[Symbol.toStringTag]}(${[...this].toString()})`
+      return `${this[Symbol.toStringTag]} [${[...this].toString()}]`
     } else {
-      return `${this[Symbol.toStringTag]}(${[...take(25)(this)].toString()}...)`
+      return `${this[Symbol.toStringTag]} [${[...take(25)(this)].toString()}...]`
     }
   }
 }

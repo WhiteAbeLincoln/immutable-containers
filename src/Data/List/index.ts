@@ -1,3 +1,3 @@
 
-export { List, ConstantList } from './List'
+export { List, ConstantList, getMonoid } from './List'
 export * from './operators'

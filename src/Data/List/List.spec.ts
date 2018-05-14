@@ -4,6 +4,7 @@ import { array } from 'fp-ts/lib/Array'
 import { equals } from '../../Prelude'
 import { length } from './operators'
 import { identity, Identity } from '../../Identity'
+import { functorTest } from '../../test/utils'
 
 // helper functions
 const pause = (milli: number) => {
@@ -195,6 +196,8 @@ describe('List', () => {
       const toString = (a: any): string => a.toString()
 
       const u = List.of(1)
+
+      functorTest(module, u)
 
       // u.map(x => x) === u
       expect(

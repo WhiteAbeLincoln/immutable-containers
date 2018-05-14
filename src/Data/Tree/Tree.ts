@@ -7,14 +7,15 @@
 import { toString } from 'fp-ts/lib/function'
 import { Monad1 } from 'fp-ts/lib/Monad'
 import { Functor1 } from 'fp-ts/lib/Functor'
-import { Applicative1, Applicative } from 'fp-ts/lib/Applicative'
+import { Applicative1, Applicative, Applicative3, Applicative2 } from 'fp-ts/lib/Applicative'
 import { Foldable1, foldr } from 'fp-ts/lib/Foldable'
 import { Traversable1 } from 'fp-ts/lib/Traversable'
-import { HKT } from 'fp-ts/lib/HKT'
 import { liftA2 } from 'fp-ts/lib/Apply'
-import { array, traverse as traverseA, isEmpty } from 'fp-ts/lib/Array'
-import { iterate, concatMap, takeWhile, map as mapI } from '../List/'
+import { iterate, concatMap, takeWhile, map as mapL, List, cons, empty } from '../List/'
 import { Extend1 } from 'fp-ts/lib/Extend'
+import { HKT, URIS3, URIS2, URIS, Type3, Type2, Type } from 'fp-ts/lib/HKT'
+import { list, Collection } from '../List/List'
+import { equals } from '../../Prelude'
 
 declare module 'fp-ts/lib/HKT' {
   interface URI2HKT<A> {
@@ -25,15 +26,23 @@ declare module 'fp-ts/lib/HKT' {
 export const URI = 'Tree'
 export type URI = typeof URI
 
-export type Forest<A> = Array<Tree<A>>
+export type Forest<A> = List<Tree<A>>
 
 /**
  * A rose-tree with instance methods
  */
-export class Tree<A> {
+export class Tree<A> implements Collection<A>, HKT<URI, A> {
   readonly _tag: 'Node' = 'Node'
   readonly _A!: A
   readonly _URI!: URI
+
+  get [Symbol.toStringTag]() {
+    return 'Tree'
+  }
+
+  [Symbol.iterator] = () => (function*(obj: Tree<A>) {
+    yield* obj.flatten()
+  }(this))
 
   /**
    * A data constructor for Tree
@@ -51,7 +60,11 @@ export class Tree<A> {
 
   toString(): string {
     // tslint:disable-next-line:max-line-length
-    return `Node {rootLabel = ${toString(this.rootLabel)}, subForest = [${this.subForest.map(t => t.toString()).join(', ')}]}`
+    return `Node {rootLabel = ${toString(this.rootLabel)}, subForest = ${this.subForest.map(t => t.toString())}}`
+  }
+
+  static of<A>(rootLabel: A) {
+    return Node(rootLabel)(List.zero())
   }
 
   map<B>(f: ((a: A) => B)): Tree<B> {
@@ -75,7 +88,7 @@ export class Tree<A> {
     /* Node x ts >>= f = case f x of
           Node x' ts' -> Node x' (ts' ++ map (>>= f) ts)
     */
-    return Node(x1)(ts1.concat(ts.map(t => t.chain(f))))
+    return Node(x1)(ts1.alt(ts.map(t => t.chain(f))))
   }
 
   ap<B>(fab: Tree<(a: A) => B>): Tree<B> {
@@ -101,28 +114,30 @@ export class Tree<A> {
     return ts.reduce((p, c) => c.reduce(p, f), first)
   }
 
-  traverse<F>(F: Applicative<F>): <B>(f: (a: A) => HKT<F, B>) => HKT<F, Tree<B>> {
-    return <B>(f: (a: A) => HKT<F, B>): HKT<F, Tree<B>> => {
-      const x = this.rootLabel
-      const ts = this.subForest
-      /* traverse f (Node x ts) = liftA2 Node (f x) (traverse (traverse f) ts) */
-      return liftA2(F)((b: B) => Node(b))(f(x))(traverseA(F)(ts, t => t.traverse(F)(f)))
-    }
+  traverse<F extends URIS3, U, L, B>(F: Applicative3<F>, f: (a: A) => Type3<F, U, L, B>): Type3<F, U, L, Tree<B>>
+  traverse<F extends URIS2, L, B>(F: Applicative2<F>, f: (a: A) => Type2<F, L, B>): Type2<F, L, Tree<B>>
+  traverse<F extends URIS, B>(F: Applicative1<F>, f: (a: A) => Type<F, B>): Type<F, Tree<B>>
+  traverse<F, B>(F: Applicative<F>, f: (a: A) => HKT<F, B>): HKT<F, Tree<B>>
+  traverse<F, B>(F: Applicative<F>, f: (a: A) => HKT<F, B>): HKT<F, Tree<B>> {
+    const x = this.rootLabel
+    const ts = this.subForest
+    /* traverse f (Node x ts) = liftA2 Node (f x) (traverse (traverse f) ts) */
+    return liftA2(F)((b: B) => Node(b))(f(x))(ts.traverse(F, t => t.traverse(F, f)))
   }
 
   extend<B>(f: (t: Tree<A>) => B): Tree<B> {
     return new Tree(f(this), this.subForest.map(ts => ts.extend(f)))
   }
 
-  flatten(): A[] {
+  flatten(): List<A> {
     return flatten(this)
   }
 
-  levels(): A[][] {
+  levels(): List<List<A>> {
     return levels(this)
   }
 
-  foldTree<B>(f: ((a: A) => (b: B[]) => B)): B {
+  foldTree<B>(f: ((a: A) => (b: List<B>) => B)): B {
     return foldTree(f)(this)
   }
 
@@ -132,6 +147,10 @@ export class Tree<A> {
 
   drawForest(f?: (a: A) => string): string {
     return drawForest(this.subForest.map(t => t.map(f || toString)))
+  }
+
+  equals(other: Tree<A>) {
+    return equals(this.rootLabel, other.rootLabel) && equals(this.subForest, other.subForest)
   }
 }
 
@@ -171,28 +190,28 @@ export const drawForest = (_forest: Forest<string>): string => {
  * The elements of a tree in pre-order.
  * @param tree The tree to flatten
  */
-export const flatten = <A>(tree: Tree<A>): A[] => squish(tree)([])
+export const flatten = <A>(tree: Tree<A>): List<A> => squish(tree)(List.zero())
 
-const squish = <A>(tree: Tree<A>) => (xs: A[]): A[] => {
+const squish = <A>(tree: Tree<A>) => (xs: List<A>): List<A> => {
   const x = tree.rootLabel
   const ts = tree.subForest
-  return [x, ...foldr(array)(ts, xs, (a, b) => squish(a)(b))]
+  return cons(x)(foldr(list)(ts, xs, (a, b) => squish(a)(b)))
 }
 
 /**
  * Lists of nodes at each level of the tree.
  * @param tree The tree
  */
-export const levels = <A>(tree: Tree<A>): A[][] => {
-  const one = iterate((xs: Array<Tree<A>>) => concatMap(xs, subForest))([tree])
-  const two = takeWhile<Array<Tree<A>>>(x => !isEmpty(x))(one)
-  return [...mapI((t: Array<Tree<A>>) => t.map(rootLabel))(two)]
+export const levels = <A>(tree: Tree<A>): List<List<A>> => {
+  const one = iterate((xs: List<Tree<A>>) => concatMap(xs, subForest))(List.of(tree))
+  const two = takeWhile<List<Tree<A>>>(x => !empty(x))(one)
+  return mapL((t: List<Tree<A>>) => t.map(rootLabel))(two)
 }
 
 /**
  * Catamorphism on trees.
  */
-export const foldTree = <A, B>(f: ((a: A) => (b: B[]) => B)) => {
+export const foldTree = <A, B>(f: ((a: A) => (b: List<B>) => B)) => {
   return function go(tree: Tree<A>): B {
     const x = tree.rootLabel
     const ts = tree.subForest
@@ -234,11 +253,11 @@ export const tree: Monad1<URI>
                  & Extend1<URI>
                  & Traversable1<URI> = {
   URI
-, of: a => Node(a)([])
+, of: Tree.of
 , map: (fa, f) => fa.map(f)
 , ap: (fab, fa) => fa.ap(fab)
 , chain: (fa, f) => fa.chain(f)
 , reduce: (fa, b, f) => fa.reduce(b, f)
-, traverse: F => (ta, f) => ta.traverse(F)(f)
+, traverse: F => (ta, f) => ta.traverse(F, f)
 , extend: (ea, f) => ea.extend(f)
 }
