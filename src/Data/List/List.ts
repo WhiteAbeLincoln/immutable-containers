@@ -7,14 +7,7 @@ import { Alternative1 } from 'fp-ts/lib/Alternative'
 import { Extend1 } from 'fp-ts/lib/Extend'
 import { Applicative, Applicative2, Applicative3, Applicative1 } from 'fp-ts/lib/Applicative'
 import { HKT, URIS3, URIS2, URIS, Type2, Type, Type3 } from 'fp-ts/lib/HKT'
-
-const equal = (a: any, b: any): boolean => {
-  if (a && typeof a.equals === 'function') {
-    return a.equals(b)
-  }
-
-  return a === b
-}
+import { equals } from '../../Prelude'
 
 const getNextN = <A>(n: number, cache: A[], iter: IterableIterator<A>) => {
   let count = 0
@@ -140,7 +133,7 @@ export class List<A> implements Collection<A> {
       }
     }
 
-    if (length) {
+    if (typeof length === 'number') {
       this._length = length
     }
   }
@@ -211,7 +204,8 @@ export class List<A> implements Collection<A> {
   }
 
   ap<B>(fab: List<(a: A) => B>): List<B> {
-    return concat(fab.map(f => this.map(f)))
+    const inner = fab.map(f => this.map(f))
+    return concat(inner)
   }
 
   // TODO: make this a lazy foldr
@@ -271,7 +265,7 @@ export class List<A> implements Collection<A> {
     const zipped = zip(this)(other)
 
     for (const pair of zipped) {
-      if (!equal(pair[0], pair[1])) {
+      if (!equals(pair[0], pair[1])) {
         return false
       }
     }
@@ -285,9 +279,9 @@ export class List<A> implements Collection<A> {
 
   toString(): string {
     if (this.length !== Infinity) {
-      return `List(${[...this].toString()})`
+      return `${this[Symbol.toStringTag]}(${[...this].toString()})`
     } else {
-      return `List(${[...take(25)(this)].toString()})`
+      return `${this[Symbol.toStringTag]}(${[...take(25)(this)].toString()}...)`
     }
   }
 }

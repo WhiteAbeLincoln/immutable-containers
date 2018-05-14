@@ -1,4 +1,8 @@
 import { List, ConstantList, list as module } from './List'
+import { sequence } from 'fp-ts/lib/Traversable'
+import { array } from 'fp-ts/lib/Array'
+import { equals } from '../../Prelude'
+import { head } from './operators'
 
 // helper functions
 const pause = (milli: number) => {
@@ -14,16 +18,16 @@ const time = (fn: () => void): number => {
 }
 
 describe('List', () => {
-  const array = [0, 1, 2, 3, 4]
+  const arr = [0, 1, 2, 3, 4]
 
   const mapInit = [['a', 1], ['b', 2], ['c', 3]]
   const map = new Map(mapInit as Array<[string, number]>)
 
-  const set = new Set(array)
+  const set = new Set(arr)
 
   const maplist = new List(map)
   const setlist = new List(set)
-  const list = new List(array)
+  const list = new List(arr)
   const genlist = new List(function*() {
     // tslint:disable-next-line:prefer-const
     let count = 0
@@ -55,18 +59,18 @@ describe('List', () => {
   })
 
   it('allows iteration multiple times from an iterable structure', () => {
-    expect([...list]).toEqual(array)
-    expect([...list]).toEqual(array)
+    expect([...list]).toEqual(arr)
+    expect([...list]).toEqual(arr)
 
     expect([...maplist]).toEqual(mapInit)
     expect([...maplist]).toEqual(mapInit)
 
-    expect([...setlist]).toEqual(array)
+    expect([...setlist]).toEqual(arr)
     expect([...setlist]).toEqual([...list])
   })
 
   it('properly sets the length from a finite iterable structure', () => {
-    expect(list).toHaveLength(array.length)
+    expect(list).toHaveLength(arr.length)
     expect(maplist).toHaveLength(map.size)
     expect(setlist).toHaveLength(set.size)
   })
@@ -78,7 +82,7 @@ describe('List', () => {
   })
 
   it('defaults the length to infinity when the size of the input structure cannot be determined', () => {
-    const iter = array[Symbol.iterator]()
+    const iter = arr[Symbol.iterator]()
     const custom = {
       *[Symbol.iterator]() { yield* iter }
     }
@@ -95,7 +99,7 @@ describe('List', () => {
   })
 
   it('allows index access', () => {
-    expect(list.get(1)).toBe(array[1])
+    expect(list.get(1)).toBe(arr[1])
     expect(maplist.get(0)).toEqual(mapInit[0])
     expect(set.has(setlist.get(1))).toBeTruthy()
     expect(genlist.get(2)).toBe(2)
@@ -193,20 +197,22 @@ describe('List', () => {
 
       // u.map(x => x) === u
       expect(
-        u.map(id)
-          .equals(
-        u
-      )).toBeTruthy()
+        equals(
+          u.map(id),
+          u
+        )
+      ).toBeTruthy()
 
       const f = plus(1)
       const g = toString
 
       // u.map(f).map(g) === u.map(x => g(f(x)))
       expect(
-        u.map(f).map(g)
-          .equals(
-        u.map(x => g(f(x))
-      ))).toBeTruthy()
+        equals(
+          u.map(f).map(g),
+          u.map(x => g(f(x))
+        )
+      )).toBeTruthy()
 
     })
   })
@@ -227,10 +233,11 @@ describe('List', () => {
 
       // x.ap(g.ap(f.map(compose))) === x.ap(g).ap(f)
       expect(
-        x.ap(g.ap(f.map(i => compose(i))))
-          .equals(
-        x.ap(g).ap(f)
-      )).toBeTruthy()
+        equals(
+          x.ap(g.ap(f.map(i => compose(i)))),
+          x.ap(g).ap(f)
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -247,10 +254,11 @@ describe('List', () => {
       // Identity.
       // v.ap(A.of(x => x)) === v
       expect(
-        v.ap(List.of(id))
-          .equals(
-        v
-      )).toBeTruthy()
+        equals(
+          v.ap(List.of(id)),
+          v
+        )
+      ).toBeTruthy()
 
       const toString = (a: any): string => a.toString()
 
@@ -260,10 +268,11 @@ describe('List', () => {
       // Homomorphism
       // A.of(x).ap(A.of(f)) === A.of(f(x))
       expect(
-        List.of(1).ap(List.of(f))
-          .equals(
-        List.of(f(x))
-      )).toBeTruthy()
+        equals(
+          List.of(1).ap(List.of(f)),
+          List.of(f(x))
+        )
+      ).toBeTruthy()
 
       const y = 2
       const u = List.of(toString)
@@ -271,10 +280,11 @@ describe('List', () => {
       // Interchange
       // A.of(y).ap(u) === u.ap(A.of(f => f(y)))
       expect(
-        List.of(y).ap(u)
-          .equals(
-        u.ap(List.of((f: typeof toString) => f(y)))
-      )).toBeTruthy()
+        equals(
+          List.of(y).ap(u),
+          u.ap(List.of((f: typeof toString) => f(y)))
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -291,20 +301,22 @@ describe('List', () => {
       // Associativity
       // a.alt(b).alt(c) === a.alt(b.alt(c))
       expect(
-        a.alt(b).alt(c)
-          .equals(
-        a.alt(b.alt(c))
-      )).toBeTruthy()
+        equals(
+          a.alt(b).alt(c),
+          a.alt(b.alt(c))
+        )
+      ).toBeTruthy()
 
       const f = (x: number) => x.toString()
 
       // Distributivity
       // a.alt(b).map(f) === a.map(f).alt(b.map(f))
       expect(
-        a.alt(b).map(f)
-          .equals(
-        a.map(f).alt(b.map(f))
-      ))
+        equals(
+          a.alt(b).map(f),
+          a.map(f).alt(b.map(f))
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -319,26 +331,29 @@ describe('List', () => {
       // Right identity - zero on the right
       // x.alt(A.zero()) === x
       expect(
-        x.alt(List.zero())
-          .equals(
-        x
-      ))
+        equals(
+          x.alt(List.zero()),
+          x
+        )
+      ).toBeTruthy()
 
       // Left identity
       // A.zero().alt(x) === x
       expect(
-        List.zero<number>().alt(x)
-          .equals(
-        x
-      ))
+        equals(
+          List.zero<number>().alt(x),
+          x
+        )
+      ).toBeTruthy()
 
       // Annihilation
       // A.zero().map(f) === A.zero()
       expect(
-        List.zero().map(x => x.toString())
-          .equals(
-        List.zero()
-      ))
+        equals(
+          List.zero().map(x => x.toString()),
+          List.zero()
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -351,20 +366,20 @@ describe('List', () => {
       // Distributivity
       // x.ap(f.alt(g)) === x.ap(f).alt(x.ap(g))
       expect(
-        x.ap(f.alt(g))
-          .equals(
-        x.ap(f).alt(x.ap(g))
-      )).toBeTruthy()
+        equals(
+          x.ap(f.alt(g)),
+          x.ap(f).alt(x.ap(g))
+        )
+      ).toBeTruthy()
 
       // Annihilation
       // x.ap(A.zero()) === A.zero()
-      // tslint:disable-next-line:no-console
-      console.log('Alternative annihilation')
       expect(
-        x.ap(List.zero())
-          .equals(
-        List.zero()
-      )).toBeTruthy()
+        equals(
+          x.ap(List.zero()),
+          List.zero()
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -381,10 +396,11 @@ describe('List', () => {
       // Associativity.
       // m.chain(f).chain(g) === m.chain(x => f(x).chain(g))
       expect(
-        m.chain(f).chain(g)
-          .equals(
-        m.chain(x => f(x).chain(g))
-      )).toBeTruthy()
+        equals(
+          m.chain(f).chain(g),
+          m.chain(x => f(x).chain(g))
+        )
+      ).toBeTruthy()
     })
   })
 
@@ -416,20 +432,90 @@ describe('List', () => {
     })
 
     it('fulfills the Traversable laws', () => {
+
       const u = List.of(1, 2, 3)
 
       // Identity
       // u.traverse(F, F.of) === F.of(u)
       expect(
-        u.traverse(module, List.of)
-          .equals(
-        List.of(u)
-      ))
+        equals(
+          u.traverse(module, List.of),
+          List.of(u)
+        )
+      ).toBeTruthy()
+
+      // t :: List a -> Array a
+      const t = <A>(l: List<A>) => l.reduce((xs, x) => xs.concat([x]), [] as A[])
+
+      const v = List.of(List.of(1), List.of(2), List.of(3))
 
       // Naturality
-      // expect(
-      //   List.of(u.traverse(module, ))
-      // )
+      // t :: F a -> G a
+      // we have F === List and G === Array
+      // where F and G are both Functors
+      // u is a Traversable. u :: U (F a)
+      // t(u.sequence(F)) === u.traverse(F)
+      const seq = sequence(module /* F */, module /* U */)
+      const first = t(seq(v))
+      const second = v.traverse<'Array', number>(array, t)
+
+      expect(
+        first.map((v, i) => equals(v, second[i])).every(v => v)
+      ).toBeTruthy()
+
+      // Composition
+      // FIXME: Implement Composition test
+
+    })
+  })
+
+  describe('Monad instance', () => {
+    it('Fulfills the Monad laws', () => {
+      // f :: Monad m => a -> m a where m === List
+      const f = (x: number) => List.of(x.toString())
+
+      // Left identity
+      // M.of(a).chain(f) === f(a)
+      expect(
+        equals(
+          List.of(1).chain(f),
+          f(1)
+        )
+      ).toBeTruthy()
+
+      // Right identity
+      // ma.chain(M.of) = ma
+      expect(
+        equals(
+          List.of(1).chain(List.of),
+          List.of(1)
+        )
+      ).toBeTruthy()
+    })
+  })
+
+  describe('Extend instance', () => {
+    it('defines extend', () => {
+      expect(genlist.extend).not.toBe(undefined)
+    })
+
+    it('fulfills the Extend laws', () => {
+      // f :: List number -> string
+      const f = (x: List<number>) => head(x).toString()
+
+      // g :: List string -> number
+      const g = (x: List<string>) => head(x).length
+
+      // w :: List number
+      const w = List.of(1, 2, 3)
+
+      // w.extend(f).extend(g) === w.extend(w_ => g(w_.extend(f)))
+      expect(
+        equals(
+          w.extend(f).extend(g),
+          w.extend(ww => g(ww.extend(f)))
+        )
+      ).toBeTruthy()
     })
   })
 })
