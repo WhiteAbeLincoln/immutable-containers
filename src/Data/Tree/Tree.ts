@@ -35,6 +35,8 @@ export class Tree<A> implements Collection<A>, HKT<URI, A> {
   readonly _tag: 'Node' = 'Node'
   readonly _A!: A
   readonly _URI!: URI
+  readonly rootLabel: A
+  readonly subForest: Forest<A>
 
   get [Symbol.toStringTag]() {
     return 'Tree'
@@ -52,7 +54,18 @@ export class Tree<A> implements Collection<A>, HKT<URI, A> {
   // tslint:disable-next-line:variable-name
   static Node = <A>(rootLabel: A) => (subForest: Forest<A>) => new Tree(rootLabel, subForest)
 
-  private constructor(readonly rootLabel: A, readonly subForest: Forest<A>) {}
+  constructor(rootLabel: A, subForest: Forest<A>)
+  constructor(obj: { rootLabel: A, subForest: Forest<A> })
+  constructor(first: any, subForest?: Forest<A>) {
+    if (arguments.length > 1) {
+      this.rootLabel = first
+      this.subForest = subForest || List.zero()
+    } else {
+      const { rootLabel, subForest } = first as { rootLabel: A, subForest: Forest<A> }
+      this.rootLabel = rootLabel
+      this.subForest = subForest
+    }
+  }
 
   inspect(): string {
     return this.toString()
@@ -60,7 +73,11 @@ export class Tree<A> implements Collection<A>, HKT<URI, A> {
 
   toString(): string {
     // tslint:disable-next-line:max-line-length
-    return `Node {rootLabel = ${toString(this.rootLabel)}, subForest = ${this.subForest.map(t => t.toString())}}`
+    return `${this[Symbol.toStringTag]}({rootLabel: ${toString(this.rootLabel)}, subForest: ${this.subForest.map(t => t.toString())}})`
+  }
+
+  toJSON() {
+    return { rootLabel: this.rootLabel, subForest: this.subForest }
   }
 
   static of<A>(rootLabel: A) {
@@ -203,7 +220,7 @@ const squish = <A>(tree: Tree<A>) => (xs: List<A>): List<A> => {
  * @param tree The tree
  */
 export const levels = <A>(tree: Tree<A>): List<List<A>> => {
-  const one = iterate((xs: List<Tree<A>>) => concatMap(xs, subForest))(List.of(tree))
+  const one = iterate((xs: List<Tree<A>>) => concatMap<Tree<A>, Tree<A>>(subForest)(xs))(List.of(tree))
   const two = takeWhile<List<Tree<A>>>(x => !empty(x))(one)
   return mapL((t: List<Tree<A>>) => t.map(rootLabel))(two)
 }

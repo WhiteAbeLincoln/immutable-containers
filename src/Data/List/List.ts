@@ -292,9 +292,9 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
 
   toString(): string {
     if (this.length !== Infinity) {
-      return `${this[Symbol.toStringTag]} [${[...this].toString()}]`
+      return `${this[Symbol.toStringTag]}(${[...this].toString()})`
     } else {
-      return `${this[Symbol.toStringTag]} [${[...take(25)(this)].toString()}...]`
+      return `${this[Symbol.toStringTag]}(${[...take(25)(this)].toString()}...)`
     }
   }
 }
@@ -312,6 +312,7 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
 export const ConstantList = (size: number) => <A>(list: List<A>): List<A> => {
   const cache: A[] = []
   const iter = list[Symbol.iterator]()
+  const tag = `ConstantList(${size})`
 
   return new Proxy(list, {
     get(target, p) {
@@ -332,7 +333,11 @@ export const ConstantList = (size: number) => <A>(list: List<A>): List<A> => {
       }
 
       if (p === Symbol.toStringTag) {
-        return `ConstantList(${size})`
+        return tag
+      }
+
+      if (p === 'toString') {
+        return () => `${tag}(${list.toString()})`
       }
 
       return (target as any)[p]
@@ -343,10 +348,12 @@ export const ConstantList = (size: number) => <A>(list: List<A>): List<A> => {
 /**
  * Gives List's Monoid instance
  */
-export const getMonoid = <A = never>(): Monoid<List<A>> => ({
-  concat: (x, y) => append(x)(y)
-, empty: new List()
-})
+export function getMonoid<A = never>(): Monoid<List<A>> {
+  return {
+    concat: (x, y) => append(x)(y)
+  , empty: List.zero()
+  }
+}
 
 /**
  * The List module for [fp-ts](https://github.com/gcanti/fp-ts)

@@ -1,6 +1,5 @@
 /** @module Data/List/operators  */
 import { concatMap as cm, length as len, empty as empt } from '../Foldable'
-import { array } from 'fp-ts/lib/Array'
 import { List, ConstantList, list } from './List'
 import { None, Some } from 'fp-ts/lib/Option'
 
@@ -31,27 +30,6 @@ export const append = <A>(xs: List<A>) => (ys: List<A>) => (
 )
 
 /**
- * Concatenate a list of lists
- * @param xss The list of lists
- */
-export const concat = <A>(xss: List<List<A>>) => {
-  const finite = xss.length !== Infinity
-
-  let length = 0
-  if (finite) {
-    for (const xs of xss) {
-      length += xs.length
-    }
-  }
-
-  return new List(function*() {
-    for (const xs of xss) {
-      yield* xs
-    }
-  }, finite ? length : Infinity)
-}
-
-/**
  * Extract the first element of a list, which must be non-empty.
  * @see [Data.List head](http://hackage.haskell.org/package/base-4.11.1.0/docs/Data-List.html#v:head)
  * @param xs The list
@@ -70,6 +48,8 @@ export const head = <A>(xs: List<A>): A => {
  * @param xs The finite list
  */
 export const last = <A>(xs: List<A>) => {
+  if (xs.length === 0) throw new Error('last: Empty list')
+  if (xs.length === Infinity) throw new Error('last: Infinite list')
   const lst = [...xs]
   if (lst.length === 0) throw new Error('last: Empty list')
   return lst[lst.length - 1]
@@ -80,8 +60,9 @@ export const last = <A>(xs: List<A>) => {
  * @see [Data.List tail](http://hackage.haskell.org/package/base-4.11.1.0/docs/Data-List.html#v:tail)
  * @param xs The list
  */
-export const tail = <A>(xs: List<A>): List<A> => (
-  new List(function*() {
+export const tail = <A>(xs: List<A>): List<A> => {
+  if (xs.length === 0) throw new Error('tail: Empty list')
+  return new List(function*() {
     const iter = xs[Symbol.iterator]()
 
     let hitFirst = false
@@ -99,15 +80,16 @@ export const tail = <A>(xs: List<A>): List<A> => (
 
     if (!hitFirst) throw new Error('tail: Empty list')
   }, xs.length - 1)
-)
+}
 
 /**
  * Return all the elements of a list except the last one. The list must be non-empty.
  * @see [Data.List init](http://hackage.haskell.org/package/base-4.11.1.0/docs/Data-List.html#v:init)
  * @param xs The list
  */
-export const init = <A>(xs: List<A>): List<A> => (
-  new List(function*() {
+export const init = <A>(xs: List<A>): List<A> => {
+  if (xs.length === 0) throw new Error('init: Empty list')
+  return new List(function*() {
     const iter = xs[Symbol.iterator]()
 
     let hitFirst = false
@@ -126,7 +108,7 @@ export const init = <A>(xs: List<A>): List<A> => (
 
     if (!hitFirst) throw new Error('init: Empty list')
   }, xs.length - 1)
-)
+}
 
 export function length<A>(xs: List<A>) {
   return len(list)(xs)
@@ -151,9 +133,10 @@ export const map = <A, B>(f: (a: A) => B) => (xs: List<A>) => (
  * @see [Data.List reverse](http://hackage.haskell.org/package/base-4.11.1.0/docs/Data-List.html#v:reverse)
  * @param xs The finite list
  */
-export const reverse = <A>(xs: List<A>): List<A> => (
-  new List([...xs].reverse())
-)
+export const reverse = <A>(xs: List<A>): List<A> => {
+  if (xs.length === Infinity) throw new Error('reverse: Infinite list')
+  return new List([...xs].reverse())
+}
 
 /**
  * Takes an element and a list and `intersperses' that element between the elements of the list.
@@ -163,17 +146,13 @@ export const reverse = <A>(xs: List<A>): List<A> => (
  */
 export const intersperse = <A>(sep: A) => (xs: List<A>) => (
   new List(function*() {
-    const iter = xs[Symbol.iterator]()
-    // yield the first element
-    for (const x of iter) {
+    let hitFirst = false
+    for (const x of xs) {
+      if (hitFirst) {
+        yield sep
+      }
       yield x
-      break
-    }
-
-    // yield the rest with sep prepended
-    for (const x of iter) {
-      yield sep
-      yield x
+      if (!hitFirst) hitFirst = true
     }
   }, xs.length + xs.length - 1)
 )
@@ -225,6 +204,31 @@ export const subsequences = <A>(_list: List<A>): List<List<A>> => {
 
 export const permutations = <A>(_list: List<A>): List<List<A>> => {
   throw new Error('Not Implemented')
+}
+
+/**
+ * Concatenate a list of lists
+ * @param xss The list of lists
+ */
+export const concat = <A>(xss: List<List<A>>) => {
+  const finite = xss.length !== Infinity
+
+  let length = 0
+  if (finite) {
+    for (const xs of xss) {
+      length += xs.length
+    }
+  }
+
+  return new List(function*() {
+    for (const xs of xss) {
+      yield* xs
+    }
+  }, finite ? length : Infinity)
+}
+
+export function concatMap<A, B>(f: (a: A) => List<B>) {
+  return (xs: List<A>) => cm(list)(xs, f)
 }
 
 /**
@@ -282,6 +286,15 @@ export const cycle = <A>(xs: List<A>) => (
   }))
 )
 
+/**
+ * Builds a list from a seed value
+ *
+ * Takes a function that takes an element and returns `None`
+ * if it is done building the list, or `Some (a, b)` in which
+ * case `a` is prepended to the list and the function is called
+ * again with `b` as the parameter
+ * @param _f The build function
+ */
 export const unfoldr = <A, B>(_f: (b: B) => None<[A, B]> | Some<[A, B]>) => (_b: B): List<A> => {
   throw new Error('Not Implemented')
 }
@@ -321,12 +334,15 @@ export const drop = (n: number) => <A>(xs: List<A>) => (
   }, xs.length - n < 0 ? 0 : xs.length - n)
 )
 
-export const concatMap = cm(list)
-
-export const takeWhile = <A>(pred: (a: A) => boolean) => (xs: List<A>) => (
+/**
+ * Returns the longest prefix of `xs` composed of elements that satisfy the predicate `p`
+ * @param p The predicate
+ * @param xs The list
+ */
+export const takeWhile = <A>(p: (a: A) => boolean) => (xs: List<A>) => (
   new List(function*() {
     for (const x of xs) {
-      if (!pred(x)) break
+      if (!p(x)) break
       yield x
     }
   })
