@@ -1,4 +1,4 @@
-import { Tree, Node, tree as module } from './Tree'
+import { Tree, Node } from './Tree'
 import { List } from '../List'
 
 describe('Tree', () => {
