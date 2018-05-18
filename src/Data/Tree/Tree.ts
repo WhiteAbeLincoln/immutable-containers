@@ -14,8 +14,9 @@ import { liftA2 } from 'fp-ts/lib/Apply'
 import { iterate, concatMap, takeWhile, map as mapL, List, cons, empty } from '../List/'
 import { Extend1 } from 'fp-ts/lib/Extend'
 import { HKT, URIS3, URIS2, URIS, Type3, Type2, Type } from 'fp-ts/lib/HKT'
-import { list, Collection } from '../List/List'
+import { list } from '../List/List'
 import { equals } from '../../Prelude'
+import { Collection } from '../../Collection'
 
 declare module 'fp-ts/lib/HKT' {
   interface URI2HKT<A> {

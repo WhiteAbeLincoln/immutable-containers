@@ -71,28 +71,13 @@ describe('List', () => {
   })
 
   it('properly sets the length from a finite iterable structure', () => {
-    expect(list).toHaveLength(arr.length)
-    expect(maplist).toHaveLength(map.size)
-    expect(setlist).toHaveLength(set.size)
-  })
-
-  it('properly sets the length from a generator', () => {
-    expect((new List(function*() {
-      while (true) yield 5
-    }))).toHaveLength(Infinity)
-  })
-
-  it('defaults the length to infinity when the size of the input structure cannot be determined', () => {
-    const iter = arr[Symbol.iterator]()
-    const custom = {
-      *[Symbol.iterator]() { yield* iter }
-    }
-
-    expect(new List(custom)).toHaveLength(Infinity)
+    expect(list.length()).toEqual(arr.length)
+    expect(maplist.length()).toEqual(map.size)
+    expect(setlist.length()).toEqual(set.size)
   })
 
   it('properly sets the length when manually defined', () => {
-    expect(genlist).toHaveLength(5)
+    expect(genlist.length()).toEqual(5)
   })
 
   it('throws when index is too large', () => {
@@ -544,12 +529,13 @@ describe('ConstantList', () => {
 
   it('sets Symbol.toStringTag', () => {
     expect(Object.prototype.toString.call(fixedlist2)).not.toBe('[object Object]')
+    expect(Object.prototype.toString.call(fixedlist2)).not.toEqual(Object.prototype.toString.call(list2))
   })
 
   it('properly wraps List.get', () => {
-    expect(fixedlist.get(2)).toBe(1)
-    expect(fixedlist2.get(2)).toBe(3)
-    expect(fixedlist2.get(6)).toBe(3)
+    expect(fixedlist.get(2)).toBe(list.get(2))
+    expect(fixedlist2.get(2)).toBe(list2.get(2))
+    expect(fixedlist2.get(6)).toBe(list2.get(6))
   })
 
   it('throws when List.get would throw', () => {
@@ -558,7 +544,7 @@ describe('ConstantList', () => {
 
   it('doesn\'t change other property access', () => {
     expect(fixedlist).toHaveProperty('length')
-    expect(fixedlist).toHaveLength(list.length)
+    expect(fixedlist.length()).toEqual(list.length())
 
     expect((fixedlist as any).undef).toEqual(undefined)
   })

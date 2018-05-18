@@ -1,7 +1,8 @@
 /** @module Data/List/operators  */
-import { concatMap as cm, length as len, empty as empt } from '../Foldable'
-import { List, ConstantList, list } from './List'
-import { None, Some } from 'fp-ts/lib/Option'
+import { List, ConstantList } from './List'
+import { None, Some, isSome } from 'fp-ts/lib/Option'
+import { Suspension, delay, isSuspension } from '../../Suspension'
+import { EmptyListError } from '../../util'
 
 /**
  * Prepend `x` at the beginning of a list
@@ -9,11 +10,11 @@ import { None, Some } from 'fp-ts/lib/Option'
  * @param xs The list to prepend to
  * @returns x:xs
  */
-export const cons = <A>(x: A) => (xs: List<A>) => (
+export const cons = <A>(x: A | Suspension<A>) => (xs: List<A> | Suspension<List<A>>): List<A> => (
   new List(function*() {
-    yield x
-    yield* xs
-  }, xs.length + 1)
+    isSuspension(x) ? yield x() : yield x
+    isSuspension(xs) ? yield* xs() : yield* xs
+  }, typeof (xs as any)._length === 'number' ? (xs as any)._length + 1 : undefined)
 )
 
 /**
@@ -22,11 +23,14 @@ export const cons = <A>(x: A) => (xs: List<A>) => (
  * @param xs The first list
  * @param ys The second list
  */
-export const append = <A>(xs: List<A>) => (ys: List<A>) => (
+export const append = <A>(xs: List<A> | Suspension<List<A>>) => (ys: List<A> | Suspension<List<A>>) => (
   new List(function*() {
-    yield* xs
-    yield* ys
-  }, xs.length + ys.length)
+    isSuspension(xs) ? yield* xs() : yield* xs
+    isSuspension(ys) ? yield* ys() : yield* ys
+  }, typeof ((xs as any)._length === 'number' && typeof (ys as any)._length) === 'number'
+      ? (xs as any)._length + (ys as any)._length
+      : undefined
+  )
 )
 
 /**
@@ -39,7 +43,7 @@ export const head = <A>(xs: List<A>): A => {
     return it
   }
 
-  throw new Error('head: Empty list')
+  throw new EmptyListError('head')
 }
 
 /**
@@ -48,10 +52,8 @@ export const head = <A>(xs: List<A>): A => {
  * @param xs The finite list
  */
 export const last = <A>(xs: List<A>) => {
-  if (xs.length === 0) throw new Error('last: Empty list')
-  if (xs.length === Infinity) throw new Error('last: Infinite list')
+  if (empty(xs)) throw new EmptyListError('last')
   const lst = [...xs]
-  if (lst.length === 0) throw new Error('last: Empty list')
   return lst[lst.length - 1]
 }
 
@@ -61,25 +63,19 @@ export const last = <A>(xs: List<A>) => {
  * @param xs The list
  */
 export const tail = <A>(xs: List<A>): List<A> => {
-  if (xs.length === 0) throw new Error('tail: Empty list')
+  if (empty(xs)) throw new EmptyListError('tail')
   return new List(function*() {
-    const iter = xs[Symbol.iterator]()
-
     let hitFirst = false
 
     // ignore the first
-    for (const _ of iter) {
-      hitFirst = true
-      break
+    for (const x of xs) {
+      if (hitFirst) {
+        yield x
+      } else {
+        hitFirst = true
+      }
     }
-
-    // yield the rest
-    for (const x of iter) {
-      yield x
-    }
-
-    if (!hitFirst) throw new Error('tail: Empty list')
-  }, xs.length - 1)
+  }, typeof xs._length === 'number' ? xs._length - 1 : undefined)
 }
 
 /**
@@ -88,34 +84,31 @@ export const tail = <A>(xs: List<A>): List<A> => {
  * @param xs The list
  */
 export const init = <A>(xs: List<A>): List<A> => {
-  if (xs.length === 0) throw new Error('init: Empty list')
+  if (empty(xs)) throw new EmptyListError('init')
   return new List(function*() {
-    const iter = xs[Symbol.iterator]()
-
     let hitFirst = false
     let prev = null
 
-    for (const x of iter) {
+    for (const x of xs) {
+      if (hitFirst) {
+        yield prev as any as A
+      } else {
+        hitFirst = true
+      }
       prev = x
-      hitFirst = true
-      break
     }
 
-    for (const it of iter) {
-      yield prev as A
-      prev = it
-    }
-
-    if (!hitFirst) throw new Error('init: Empty list')
-  }, xs.length - 1)
+  }, typeof xs._length === 'number' ? xs._length - 1 : undefined)
 }
 
 export function length<A>(xs: List<A>) {
-  return len(list)(xs)
+  return foldl((c: number, _) => c + 1)(0)(xs)
 }
 
-export function empty<A>(xs: List<A>) {
-  return empt(list)(xs)
+export const empty = <A>(xs: List<A>) => {
+  let hitFirst = false
+  for (const _ of xs) { hitFirst = true; break }
+  return !hitFirst
 }
 
 /**
@@ -125,7 +118,11 @@ export function empty<A>(xs: List<A>) {
  * @param xs The list
  */
 export const map = <A, B>(f: (a: A) => B) => (xs: List<A>) => (
-  xs.map(f)
+  new List(function*() {
+    for (const x of xs) {
+      yield f(x)
+    }
+  }, xs._length)
 )
 
 /**
@@ -134,7 +131,6 @@ export const map = <A, B>(f: (a: A) => B) => (xs: List<A>) => (
  * @param xs The finite list
  */
 export const reverse = <A>(xs: List<A>): List<A> => {
-  if (xs.length === Infinity) throw new Error('reverse: Infinite list')
   return new List([...xs].reverse())
 }
 
@@ -154,7 +150,7 @@ export const intersperse = <A>(sep: A) => (xs: List<A>) => (
       yield x
       if (!hitFirst) hitFirst = true
     }
-  }, xs.length + xs.length - 1)
+  }, typeof xs._length === 'number' ? xs._length + xs._length - 1 : undefined)
 )
 
 /**
@@ -174,12 +170,12 @@ export const intercalate = <A>(xs: List<A>) => (xss: List<List<A>>) =>
  * @param list The list of lists to transpose
  */
 export const transpose = <A>(list: List<List<A>>): List<List<A>> => {
-  if (list.length === 0) return list
+  if (empty(list)) return list
 
   const first = head(list)
   const xss = tail(list)
 
-  if (first.length === 0) return transpose(xss)
+  if (empty(first)) return transpose(xss)
 
   const x = head(first)
   const xs = tail(first)
@@ -206,29 +202,50 @@ export const permutations = <A>(_list: List<A>): List<List<A>> => {
   throw new Error('Not Implemented')
 }
 
+export const foldl = <A, B>(f: (acc: B, curr: A) => B) => (init: B) => (xs: List<A>): B => {
+  let acc = init
+  for (const x of xs) {
+    acc = f(acc, x)
+  }
+
+  return acc
+}
+
+export const foldl1 = <A>(f: (acc: A, curr: A) => A) => (xs: List<A>) => {
+  if (empty(xs)) throw new EmptyListError('foldl1')
+  return foldl(f)(head(xs))(tail(xs))
+}
+
+export const foldr = <A, B>(f: (curr: A, acc: Suspension<B>) => B) => (init: B) => (xs: List<A>): B => {
+  if (empty(xs)) {
+    return init
+  }
+
+  const x = head(xs)
+  const rest = tail(xs)
+
+  return f(x, delay(() => foldr(f)(init)(rest)))
+}
+
+export const foldr1 = <A>(f: (curr: A, acc: Suspension<A>) => A) => (xs: List<A>): A => {
+  if (empty(xs)) throw new EmptyListError('foldr1')
+  return foldr(f)(head(xs))(tail(xs))
+}
+
 /**
  * Concatenate a list of lists
  * @param xss The list of lists
  */
 export const concat = <A>(xss: List<List<A>>) => {
-  const finite = xss.length !== Infinity
-
-  let length = 0
-  if (finite) {
-    for (const xs of xss) {
-      length += xs.length
-    }
-  }
-
   return new List(function*() {
     for (const xs of xss) {
       yield* xs
     }
-  }, finite ? length : Infinity)
+  })
 }
 
-export function concatMap<A, B>(f: (a: A) => List<B>) {
-  return (xs: List<A>) => cm(list)(xs, f)
+export const concatMap = <A, B>(f: (a: A) => List<B>) => (xs: List<A>): List<B> => {
+  return foldr((curr: A, acc: Suspension<List<B>>) => append(f(curr))(acc))(List.zero())(xs)
 }
 
 /**
@@ -252,7 +269,7 @@ export const iterate = <A>(f: (a: A) => A) => (x: A) => (
  * @param x The value
  */
 export const repeat = <A>(x: A) => (
-  /* Here we improve upon haskell:
+  /* Here we improve on haskell:
     We know how many repeated elements there are (1), so we can access any index
     in O(1) time by wrapping with ConstantList(1)
   */
@@ -274,17 +291,20 @@ export const replicate = (n: number) => <A>(x: A) =>
  * Ties a finite list into a circular one, or in other words, infinitely repeats the finite list
  * @param xs The finite list
  */
-export const cycle = <A>(xs: List<A>) => (
-  /* we can access any index in O(xs.length) time by wrapping with FixedList
+export const cycle = <A>(xs: List<A>) => {
+  const list = new List(function*() {
+    while (true) yield* xs
+  })
+  /* If we know the list is finite,
+    we can access any index in O(xs.length) time by wrapping with ConstantList
     This doesn't account for construction time: if xs was a lazy list that took O(2^k)
     time to emit n elements then it would actually take O(n*2^k) to access the
     first element, and O(n) to emit all subsequent
     List caches to avoid recalculating the new elements
   */
-  ConstantList(xs.length)(new List(function*() {
-    while (true) yield* xs
-  }))
-)
+  return typeof xs._length !== 'undefined' ?
+    ConstantList(xs._length)(list) : list
+}
 
 /**
  * Builds a list from a seed value
@@ -295,9 +315,16 @@ export const cycle = <A>(xs: List<A>) => (
  * again with `b` as the parameter
  * @param _f The build function
  */
-export const unfoldr = <A, B>(_f: (b: B) => None<[A, B]> | Some<[A, B]>) => (_b: B): List<A> => {
-  throw new Error('Not Implemented')
-}
+export const unfoldr = <A, B>(f: (b: B) => None<[A, B]> | Some<[A, B]>) => (b: B): List<A> => (
+  new List(function*() {
+    let x = f(b)
+    while (isSome(x)) {
+      const [a, b] = x.value
+      yield a
+      x = f(b)
+    }
+  })
+)
 
 /**
  * Returns the prefix of xs of length n, or xs if n >= length(xs)
@@ -305,8 +332,8 @@ export const unfoldr = <A, B>(_f: (b: B) => None<[A, B]> | Some<[A, B]>) => (_b:
  * @param xs The list
  */
 export const take = (n: number) => <A>(xs: List<A>) => {
-  const len =
-    n > xs.length ? xs.length
+  const len = xs._length && n > xs._length
+    ? xs._length
     : n < 1 ? 0
     : n
   return new List(function*() {
@@ -321,8 +348,12 @@ export const take = (n: number) => <A>(xs: List<A>) => {
   }, len)
 }
 
-export const drop = (n: number) => <A>(xs: List<A>) => (
-  new List(function*() {
+export const drop = (n: number) => <A>(xs: List<A>) => {
+  const len = xs._length && (
+    xs._length - n < 0 ? 0 : xs._length - n
+  )
+
+  return new List(function*() {
     let count = 0
     for (const x of xs) {
       if (count === n) {
@@ -331,8 +362,8 @@ export const drop = (n: number) => <A>(xs: List<A>) => (
         count++
       }
     }
-  }, xs.length - n < 0 ? 0 : xs.length - n)
-)
+  }, len)
+}
 
 /**
  * Returns the longest prefix of `xs` composed of elements that satisfy the predicate `p`
@@ -404,5 +435,5 @@ export const zipN = <A>(...lists: Array<List<A>>): List<A[]> => (
         it.return()
       }
     }
-  }, Math.min(...lists.map(l => l.length)))
+  })
 )

@@ -17,7 +17,7 @@ describe('cons', () => {
   })
 
   it('creates a new list with length length(xs) + 1', () => {
-    expect(newList).toHaveLength(xs.length + 1)
+    expect(newList.length()).toBe(xs.length() + 1)
   })
 })
 
@@ -30,7 +30,7 @@ describe('append', () => {
   })
 
   it('creates a new list with length length(xs) + length(ys)', () => {
-    expect(newList).toHaveLength(xs.length + ys.length)
+    expect(newList.length()).toBe(xs.length() + ys.length())
   })
 })
 
@@ -51,16 +51,8 @@ describe('last', () => {
   const xs = List.of(1, 2, 3, 4)
   const end = last(xs)
 
-  const xxxxxxxxxxxxxxxxxxs = List.from(function*() {
-    while (true) yield 1
-  })
-
   it('gets the last element of a non-empty list', () => {
     expect(end).toBe(4)
-  })
-
-  it('throws on an infinite list', () => {
-    expect(() => last(xxxxxxxxxxxxxxxxxxs)).toThrow()
   })
 
   it('throws on an empty list', () => {
@@ -120,14 +112,9 @@ describe('reverse', () => {
   const base = [1, 2, 3, 4]
   const rbase = [...base].reverse()
   const list = List.from(base)
-  const ilist = List.from(function*() { while (true) yield 1 })
 
   it('reverses a list', () => {
     expect([...reverse(list)]).toEqual(rbase)
-  })
-
-  it('throws on an infinite list', () => {
-    expect(() => reverse(ilist)).toThrow()
   })
 })
 
@@ -140,7 +127,7 @@ describe('intersperse', () => {
   })
 
   it('gives a length of 2 * length(xs) - 1', () => {
-    expect(sperse).toHaveLength(2 * list.length - 1)
+    expect(sperse.length()).toBe(2 * list.length() - 1)
   })
 })
 
@@ -159,7 +146,7 @@ describe('intercalate', () => {
   })
 
   it('gives a list with the correct length', () => {
-    expect(terc).toHaveLength(final.length)
+    expect(terc.length()).toBe(final.length)
   })
 })
 
@@ -215,7 +202,7 @@ describe('permutations', () => {
   })
 
   it('gives a list of length n!', () => {
-    expect(per).toHaveLength(3 * 2 * 1)
+    expect(per.length()).toBe(3 * 2 * 1)
   })
 })
 
@@ -244,10 +231,6 @@ describe('iterate', () => {
   const f = (num: number) => num + 1
   const nat = iterate(f)(x)
 
-  it('returns an infinite list', () => {
-    expect(nat).toHaveLength(Infinity)
-  })
-
   it('returns a list of repeated applications of f to x', () => {
     expect([...take(5)(nat)]).toEqual([0, 1, 2, 3, 4])
   })
@@ -256,7 +239,6 @@ describe('iterate', () => {
 describe('repeat', () => {
   it('returns an infinite list with x the value of every element', () => {
     const rep = repeat(5)
-    expect(rep).toHaveLength(Infinity)
     expect([...take(5)(rep)]).toEqual([5, 5, 5, 5, 5])
   })
 })
@@ -272,20 +254,16 @@ describe('cycle', () => {
   const xs = List.of(1, 2, 3)
   const cy = cycle(xs)
 
-  it('gives an infinite list', () => {
-    expect(cy).toHaveLength(Infinity)
-  })
-
   it('repeats the list xs', () => {
-    expect([...take(2 * xs.length)(cy)]).toEqual([...xs, ...xs])
+    expect([...take(2 * xs.length())(cy)]).toEqual([...xs, ...xs])
   })
 })
 
 describe('unfoldr', () => {
   it('builds a list from a function returning Option<[A, B]>', () => {
-    const toZero = (b: number) => b >= 0 ? some([b, b - 1]) as Option<[number, number]> : none
-    const fivetoZero = unfoldr(toZero)(5)
-    expect([...fivetoZero]).toEqual([5, 4, 3, 2, 1, 0])
+    const toZero = (b: number) => b === 0 ? none : some([b, b - 1]) as Option<[number, number]>
+    const fivetoOne = unfoldr(toZero)(5)
+    expect([...fivetoOne]).toEqual([5, 4, 3, 2, 1])
   })
 })
 
@@ -294,8 +272,7 @@ describe('take', () => {
     const prefix = [1, 2, 3]
     const xs = List.from([...prefix, 4, 5])
     const first3 = take(prefix.length)(xs)
-    expect(first3.length).toBe(3)
-    expect(length(first3)).toBe(3)
+    expect(first3.length()).toBe(3)
     expect(
       equals(
         first3,
@@ -367,6 +344,6 @@ describe('zipN', () => {
   })
 
   it('gives the correct length on the new list', () => {
-    expect(zipped).toHaveLength(l1.length)
+    expect(zipped.length()).toBe(l1.length())
   })
 })

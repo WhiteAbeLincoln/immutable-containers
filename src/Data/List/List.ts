@@ -1,4 +1,4 @@
-import { append, concat, unfoldr, zip, take, cons, drop } from './operators'
+import { append, concat, unfoldr, take, cons, drop, length, map, foldl, foldl1 } from './operators'
 import { Monoid } from 'fp-ts/lib/Monoid'
 import { Monad1 } from 'fp-ts/lib/Monad'
 import { Unfoldable1 } from 'fp-ts/lib/Unfoldable'
@@ -10,56 +10,9 @@ import { HKT, URIS3, URIS2, URIS, Type2, Type, Type3 } from 'fp-ts/lib/HKT'
 import { equals } from '../../Prelude'
 import { liftA2 } from 'fp-ts/lib/Apply'
 import { foldr } from 'fp-ts/lib/Foldable'
-
-const getNextN = <A>(n: number, cache: A[], iter: IterableIterator<A>) => {
-  let count = 0
-  let ddone = false
-
-  while (count < n && !ddone) {
-    const { value, done } = iter.next()
-    if (!done) {
-      cache.push(value)
-    }
-
-    ddone = done
-    count++
-  }
-}
-
-/**
- * An iterable data-structure (such as Array, Map, Set, List)
- * @internal
- */
-export interface Collection<A> {
-  [Symbol.iterator](): IterableIterator<A>
-  next?: undefined
-}
-
-/**
- * A Collection with a size or length property
- * @internal
- */
-type SizedCollection<A> = Collection<A> & ({ size: number } | { length: number })
-
-/**
- * Determines if a Collection is a SizedStructure
- * @param a The iterable structure
- * @internal
- */
-const isSizedCollection = <A>(a: Collection<A>): a is SizedCollection<A> => (
-  typeof (a as any).size === 'number' || typeof (a as any).length === 'number'
-)
-
-/**
- * Gets the value of the size or length property from a SizedStructure
- * @param a The SizedStructure
- * @internal
- */
-const getSize = (a: SizedCollection<any>): number => (
-  typeof (a as { size?: number }).size === 'number'
-    ? (a as { size: number }).size
-    : (a as { length: number }).length
-)
+import { Collection, isSizedCollection, getSize } from '../../Collection'
+import { getNextN, xor } from '../../util'
+import { constant } from 'fp-ts/lib/function'
 
 declare module 'fp-ts/lib/HKT' {
   interface URI2HKT<A> {
@@ -87,15 +40,24 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
     return 'List'
   }
 
-  /** @internal */
-  private _length: number = 0
+  /**
+   * Private length for caching purposes
+   * @internal
+   */
+  _length: undefined | number
 
   /**
-   * A lower bound for the length of the list
+   * The length of the list
    *
-   * This only provides an estimate. Use Data.List.length to get the actual size
+   * Not safe to call on infinite lists
    */
-  get length() { return this._length }
+  length(): number {
+    if (typeof this._length === 'undefined') {
+      this._length = length(this)
+    }
+
+    return this._length
+  }
 
   /** @internal */
   private cache: A[] = []
@@ -103,7 +65,7 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
 
   // tslint:disable:unified-signatures
   /**
-   * Create a list
+   * Create an empty list
    */
   constructor()
   /**
@@ -126,13 +88,11 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
           ? param
           : function*() { yield* param }
 
-      if (typeof param === 'function') {
-        this._length = Infinity
-      } else if (isSizedCollection(param)) {
+      if (typeof param !== 'function' && isSizedCollection(param)) {
         this._length = getSize(param)
-      } else {
-        this._length = Infinity
       }
+    } else {
+      this._length = 0
     }
 
     if (typeof length === 'number') {
@@ -196,13 +156,7 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
    * @param f The mapping function
    */
   map<B>(f: (a: A) => B): List<B> {
-    // tslint:disable-next-line:no-this-assignment
-    const xs = this
-    return new List(function*() {
-      for (const x of xs) {
-        yield f(x)
-      }
-    }, this.length)
+    return map(f)(this)
   }
 
   /**
@@ -220,30 +174,16 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
     return concat(inner)
   }
 
-  // TODO: make this a lazy foldr
-  reduce(f: (acc: A, curr: A) => A): A
-  reduce(f: (acc: A, curr: A) => A, init: A): A
-  reduce<B>(f: (acc: B, curr: A) => B, init: B): B
-  reduce<B>(f: (b: A | B, a: A) => A | B, init?: A | B): A | B {
+  foldl(f: (acc: A, curr: A) => A): A
+  foldl<B>(f: (acc: B, curr: A) => B, init: B): B
+  foldl<B>(f: (b: A | B, a: A) => A | B, init?: A | B): A | B {
     const hasSeed = arguments.length >= 2
-    const iter = this[Symbol.iterator]()
-
-    // remove undefined coming from optional init since we fix with the hasSeed check
-    let acc = init as any as A | B
-
-    if (!hasSeed) {
-      for (const x of iter) {
-        acc = x
-        break
-      }
-    }
-
-    for (const x of iter) {
-      acc = f(acc, x)
-    }
-
-    return acc
+    return hasSeed
+      ? foldl(f as (b: B, a: A) => B)(init as any as B)(this)
+      : foldl1(f as (b: A, a: A) => A)(this)
   }
+
+  reduce = this.foldl
 
   chain<B>(f: (a: A) => List<B>): List<B> {
     return concat(this.map(f))
@@ -271,15 +211,29 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
    * @param other The other list
    */
   equals(other: List<A>) {
-    if (this.length !== other.length) {
-      return false
-    }
+    const iter1 = this[Symbol.iterator]()
+    const iter2 = other[Symbol.iterator]()
 
-    const zipped = zip(this)(other)
+    let done1 = false
+    let done2 = false
 
-    for (const pair of zipped) {
-      if (!equals(pair[0], pair[1])) {
+    // while neither iterator is finished
+    while (!(done1 || done2)) {
+      const it1 = iter1.next()
+      const it2 = iter2.next()
+
+      done1 = !!it1.done
+      done2 = !!it2.done
+
+      // if any one is finished but the other isn't
+      if (xor(constant(done1), constant(done2))(0)) {
         return false
+      } else {
+        // otherwise check value equality
+        const v1 = it1.value
+        const v2 = it2.value
+
+        if (!equals(v1, v2)) return false
       }
     }
 
@@ -291,11 +245,7 @@ export class List<A> implements Collection<A>, HKT<URI, A> {
   }
 
   toString(): string {
-    if (this.length !== Infinity) {
-      return `${this[Symbol.toStringTag]}(${[...this].toString()})`
-    } else {
-      return `${this[Symbol.toStringTag]}(${[...take(25)(this)].toString()}...)`
-    }
+    return `${this[Symbol.toStringTag]}(${[...take(250)(this)].toString()}...)`
   }
 }
 
@@ -322,7 +272,7 @@ export const ConstantList = (size: number) => <A>(list: List<A>): List<A> => {
 
         return (i: number) => {
           if (i < 0) throw new Error('List.get: negative index')
-          if (i >= target.length) throw new Error('List.get: index too large')
+          if (target._length && i >= target._length) throw new Error('List.get: index too large')
 
           if (i % size >= cache.length) {
             getNextN((i % size + 1) - cache.length, cache, iter)
